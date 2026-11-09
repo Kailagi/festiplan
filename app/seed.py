@@ -1,15 +1,26 @@
 from datetime import datetime
-from app.database import Base,SessionLocal,engine
-from app.models import Festival,Artist,Stage,Concert,Incident
+from app.bootstrap.database import initialize_database
+from app.database import SessionLocal
+from app.models import Artist, Concert, Festival, Incident, OutboxEvent, Stage
 
-Base.metadata.create_all(bind=engine)
 
-def dt(v): 
+def dt(v):
   return datetime.fromisoformat(v)
-def seed():
+
+
+def seed(*, confirmed: bool = False) -> bool:
+ if not confirmed:
+  print(
+      "ATTENTION : le seed supprime les festivals, artistes, scènes, concerts, "
+      "incidents et événements Outbox existants. Relancez avec une confirmation "
+      "explicite avant de poursuivre."
+  )
+  return False
+
+ initialize_database()
  db=SessionLocal()
  try:
-  for model in (Incident,Concert,Stage,Artist,Festival): 
+  for model in (OutboxEvent,Incident,Concert,Stage,Artist,Festival):
    db.query(model).delete()
   db.commit()
   f=Festival(name="Hellforge Open Air",location="Clisson-sur-Rivière",start_date=dt("2027-06-18T10:00:00"),end_date=dt("2027-06-20T23:59:00"),status="preparation")
@@ -28,5 +39,20 @@ def seed():
    db.add(Concert(festival_id=f.id,artist_id=artists[an].id,stage_id=stages[sn].id,start_time=dt(st),end_time=dt(en),status="scheduled"))
   db.commit(); print("Données chargées : Hellforge Open Air, 4 scènes, 12 artistes, 14 concerts.")
  finally: db.close()
+ return True
 
-if __name__=="__main__": seed()
+
+def main() -> None:
+  print(
+      "ATTENTION : cette opération efface les données métier et les événements "
+      "Outbox existants de la base configurée."
+  )
+  confirmation = input('Tapez "OUI" pour continuer : ')
+  if confirmation.strip() != "OUI":
+   print("Chargement annulé ; aucune donnée n'a été modifiée.")
+   return
+  seed(confirmed=True)
+
+
+if __name__ == "__main__":
+  main()

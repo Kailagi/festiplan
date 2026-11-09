@@ -1,21 +1,39 @@
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import func
-
 from app.adapters.outbound.sqlalchemy.mappings import apply_domain_festival, to_domain_festival
 from app.application.ports.outbound.festival_repository import FestivalRepository
 from app.domain.entities import Festival
+from app.domain.value_objects import FestivalPeriod
 from app.models import Concert as ConcertModel
 from app.models import Festival as FestivalModel
-from app.models import Concert as ConcertTable
 
 
 class SqlAlchemyFestivalRepository(FestivalRepository):
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def next_concert_id(self) -> int:
-        highest_id = self._session.query(func.max(ConcertTable.id)).scalar()
-        return (highest_id or 0) + 1
+    def list_all(self) -> list[Festival]:
+        models = (
+            self._session.query(FestivalModel)
+            .options(
+                selectinload(FestivalModel.stages),
+                selectinload(FestivalModel.concerts).selectinload(ConcertModel.artist),
+            )
+            .order_by(FestivalModel.id)
+            .all()
+        )
+        return [to_domain_festival(model) for model in models]
+
+    def create(self, name: str, location: str, period: FestivalPeriod) -> Festival:
+        model = FestivalModel(
+            name=name,
+            location=location,
+            start_date=period.start,
+            end_date=period.end,
+            status="preparation",
+        )
+        self._session.add(model)
+        self._session.flush()
+        return to_domain_festival(model)
 
     def get_by_id(self, festival_id: int) -> Festival | None:
         model = (
@@ -46,4 +64,9 @@ class SqlAlchemyFestivalRepository(FestivalRepository):
         )
         if model is None:
             raise ValueError(f"Festival {festival.id} absent lors de la sauvegarde")
-        apply_domain_festival(festival, model)
+        pending_concerts = apply_domain_festival(festival, model)
+        self._session.flush()
+        for concert, persistence_concert in pending_concerts:
+            if persistence_concert.id is None:
+                raise RuntimeError("La base n'a pas attribué d'identifiant au concert")
+            concert.id = persistence_concert.id

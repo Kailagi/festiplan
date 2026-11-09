@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.adapters.outbound.sqlalchemy.artist_repository import SqlAlchemyArtistRepository
 from app.adapters.outbound.sqlalchemy.festival_repository import SqlAlchemyFestivalRepository
+from app.adapters.outbound.sqlalchemy.incident_repository import SqlAlchemyIncidentRepository
+from app.adapters.outbound.sqlalchemy.stage_repository import SqlAlchemyStageRepository
 from app.adapters.outbound.sqlalchemy.outbox import SqlAlchemyOutbox
 
 
@@ -11,6 +13,8 @@ class SqlAlchemyUnitOfWork:
     def __init__(self, session: Session) -> None:
         self._session = session
         self.festivals = SqlAlchemyFestivalRepository(session)
+        self.incidents = SqlAlchemyIncidentRepository(session)
+        self.stages = SqlAlchemyStageRepository(session)
         self.artists = SqlAlchemyArtistRepository(session)
         self.outbox = SqlAlchemyOutbox(session)
         self._transaction = None

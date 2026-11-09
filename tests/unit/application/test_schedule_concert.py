@@ -25,10 +25,10 @@ class InMemoryFestivalRepository:
     def get_by_concert_id(self, concert_id: int) -> Festival | None:
         return None
 
-    def next_concert_id(self) -> int:
-        return max((concert.id for concert in self.festival.concerts), default=0) + 1
-
     def save(self, festival: Festival) -> None:
+        for concert in festival.concerts:
+            if concert.id is None:
+                concert.id = 999
         self.saved.append(festival)
 
 
@@ -82,6 +82,7 @@ def test_handler_schedules_concert_and_commits_outbox_event() -> None:
     result = handler.execute(ScheduleConcertCommand(1, 200, 10, slot))
 
     assert result.concert in festival.concerts
+    assert result.concert.id is not None
     assert result.concert.time_slot == slot
     assert unit_of_work.festivals.saved == [festival]
     assert unit_of_work.outbox.events[0].concert_id == result.concert.id

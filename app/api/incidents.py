@@ -1,23 +1,52 @@
-from fastapi import APIRouter,Depends,HTTPException
-from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models import Incident,Concert
-from app.schemas import IncidentCreate,IncidentRead
+from fastapi import APIRouter, Depends, HTTPException
 
-router=APIRouter(prefix="/incidents",tags=["incidents"])
+from app.api.dependencies import (
+    get_create_incident_handler,
+    get_list_incidents_handler,
+)
+from app.application.commands import CreateIncidentCommand, ListIncidentsQuery
+from app.application.exceptions import ConcertNotFound
+from app.application.use_cases.manage_incidents import (
+    CreateIncidentHandler,
+    ListIncidentsHandler,
+)
+from app.domain.entities import Incident
+from app.schemas import IncidentCreate, IncidentRead
 
-@router.post("",response_model=IncidentRead,status_code=201)
-def create_incident(payload:IncidentCreate,db:Session=Depends(get_db)):
-    if db.query(Concert).filter(Concert.id==payload.concert_id).first() is None: 
-        raise HTTPException(status_code=404,detail="Concert introuvable")
-    row=Incident(concert_id=payload.concert_id,
-                 description=payload.description,
-                 occurred_at=payload.occurred_at)
-    db.add(row); db.commit(); db.refresh(row); return row
+router = APIRouter(prefix="/incidents", tags=["incidents"])
 
-@router.get("",response_model=list[IncidentRead])
-def list_incidents(concert_id:int|None=None,db:Session=Depends(get_db)):
-    q=db.query(Incident)
-    if concert_id is not None:
-        q=q.filter(Incident.concert_id==concert_id)
-    return q.order_by(Incident.occurred_at.desc()).all()
+def _incident_response(incident: Incident) -> dict[str, object]:
+    return {
+        "id": incident.id,
+        "concert_id": incident.concert_id,
+        "description": incident.description,
+        "occurred_at": incident.occurred_at,
+        "resolved": incident.resolved,
+    }
+
+
+@router.post("", response_model=IncidentRead, status_code=201)
+def create_incident(
+    payload: IncidentCreate,
+    handler: CreateIncidentHandler = Depends(get_create_incident_handler),
+):
+    try:
+        incident = handler.execute(
+            CreateIncidentCommand(
+                concert_id=payload.concert_id,
+                description=payload.description,
+                occurred_at=payload.occurred_at,
+            )
+        )
+    except ConcertNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _incident_response(incident)
+
+
+@router.get("", response_model=list[IncidentRead])
+def list_incidents(
+    concert_id: int | None = None,
+    handler: ListIncidentsHandler = Depends(get_list_incidents_handler),
+):
+    incidents = handler.execute(ListIncidentsQuery(concert_id=concert_id))
+    return [_incident_response(incident) for incident in incidents]

@@ -1,11 +1,21 @@
 from typing import Protocol
 
 from app.domain.entities import Festival
+from app.domain.value_objects import FestivalPeriod
 
 
 class FestivalRepository(Protocol):
-    def next_concert_id(self) -> int:
-        """Allocate an identifier for a new concert."""
+    def list_all(self) -> list[Festival]:
+        """Return all festival aggregates."""
+        ...
+
+    def create(
+        self,
+        name: str,
+        location: str,
+        period: FestivalPeriod,
+    ) -> Festival:
+        """Create and return a festival aggregate."""
         ...
 
     def get_by_id(self, festival_id: int) -> Festival | None:

@@ -25,9 +25,6 @@ class InMemoryFestivalRepository:
     def get_by_concert_id(self, concert_id: int) -> Festival | None:
         return None
 
-    def next_concert_id(self) -> int:
-        return 1
-
     def save(self, festival: Festival) -> None:
         self.saved.append(festival)
 

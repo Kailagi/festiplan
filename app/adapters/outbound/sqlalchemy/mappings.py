@@ -3,6 +3,7 @@ from app.domain.value_objects import EquipmentSet, FestivalPeriod, TimeSlot
 from app.models import Concert as ConcertModel
 from app.models import Festival as FestivalModel
 from app.models import Artist as ArtistModel
+from app.models import Stage as StageModel
 
 
 def _equipment_set(value: str) -> EquipmentSet:
@@ -15,6 +16,8 @@ def to_domain_festival(model: FestivalModel) -> Festival:
             id=stage.id,
             festival_id=stage.festival_id,
             available_equipment=_equipment_set(stage.available_equipment),
+            name=stage.name,
+            capacity=stage.capacity,
         )
         for stage in model.stages
     ]
@@ -49,16 +52,35 @@ def to_domain_artist(model: ArtistModel) -> Artist:
     )
 
 
-def apply_domain_festival(festival: Festival, model: FestivalModel) -> None:
+def to_domain_stage(model: StageModel) -> Stage:
+    return Stage(
+        id=model.id,
+        festival_id=model.festival_id,
+        available_equipment=_equipment_set(model.available_equipment),
+        name=model.name,
+        capacity=model.capacity,
+    )
+
+
+def apply_domain_festival(
+    festival: Festival,
+    model: FestivalModel,
+) -> list[tuple[Concert, ConcertModel]]:
     model.status = festival.status.value
     persistence_concerts: dict[int, ConcertModel] = {
-        concert.id: concert for concert in model.concerts
+        concert.id: concert
+        for concert in model.concerts
+        if concert.id is not None
     }
+    new_concerts: list[tuple[Concert, ConcertModel]] = []
     for concert in festival.concerts:
-        persistence_concert = persistence_concerts.get(concert.id)
+        persistence_concert = (
+            persistence_concerts.get(concert.id)
+            if concert.id is not None
+            else None
+        )
         if persistence_concert is None:
             persistence_concert = ConcertModel(
-                id=concert.id,
                 festival_id=festival.id,
                 artist_id=concert.artist_id,
                 stage_id=concert.stage_id,
@@ -67,7 +89,9 @@ def apply_domain_festival(festival: Festival, model: FestivalModel) -> None:
                 status=concert.status.value,
             )
             model.concerts.append(persistence_concert)
+            new_concerts.append((concert, persistence_concert))
             continue
         persistence_concert.start_time = concert.time_slot.start
         persistence_concert.end_time = concert.time_slot.end
         persistence_concert.status = concert.status.value
+    return new_concerts

@@ -26,11 +26,6 @@ class InMemoryFestivalRepository:
             return self.festival
         return None
 
-    def next_concert_id(self) -> int:
-        if self.festival is None or not self.festival.concerts:
-            return 1
-        return max(concert.id for concert in self.festival.concerts) + 1
-
     def get_by_concert_id(self, concert_id: int) -> Festival | None:
         if self.festival is not None and any(
             concert.id == concert_id for concert in self.festival.concerts

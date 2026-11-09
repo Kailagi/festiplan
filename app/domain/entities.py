@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 
 from app.domain.errors import ConcertNotFound, DomainError
@@ -27,6 +28,8 @@ class Stage:
     id: int
     festival_id: int
     available_equipment: EquipmentSet = field(default_factory=EquipmentSet)
+    name: str = ""
+    capacity: int = 1
 
 
 @dataclass(eq=False)
@@ -37,9 +40,18 @@ class Artist:
     required_equipment: EquipmentSet = field(default_factory=EquipmentSet)
 
 
+@dataclass(frozen=True, slots=True)
+class Incident:
+    id: int
+    concert_id: int
+    description: str
+    occurred_at: datetime
+    resolved: bool = False
+
+
 @dataclass(eq=False)
 class Concert:
-    id: int
+    id: int | None
     artist_id: int
     stage_id: int
     time_slot: TimeSlot
@@ -65,13 +77,15 @@ class Festival:
 
     def schedule_concert(
         self,
-        concert_id: int,
+        concert_id: int | None,
         artist_id: int,
         stage_id: int,
         time_slot: TimeSlot,
         required_equipment: EquipmentSet,
     ) -> Concert:
-        if any(concert.id == concert_id for concert in self.concerts):
+        if concert_id is not None and any(
+            concert.id == concert_id for concert in self.concerts
+        ):
             raise DomainError(f"Un concert avec l'identifiant {concert_id} existe déjà")
         if not self.period.contains(time_slot):
             raise DomainError("Le concert doit se dérouler pendant le festival")
@@ -100,16 +114,25 @@ class Festival:
             required_equipment=required_equipment,
         )
         self.concerts.append(concert)
+        if concert.id is not None:
+            self.record_concert_scheduled(concert)
+        return concert
+
+    def record_concert_scheduled(self, concert: Concert) -> None:
+        if concert not in self.concerts:
+            raise DomainError("Le concert ne fait pas partie de ce festival")
+        if concert.id is None:
+            raise DomainError("Le concert doit avoir un identifiant avant émission")
+
         self._domain_events.append(
             ConcertScheduled(
                 festival_id=self.id,
                 concert_id=concert.id,
-                stage_id=stage_id,
-                artist_id=artist_id,
-                time_slot=time_slot,
+                stage_id=concert.stage_id,
+                artist_id=concert.artist_id,
+                time_slot=concert.time_slot,
             )
         )
-        return concert
 
     def reschedule_concert(self, concert_id: int, new_time_slot: TimeSlot) -> Concert:
         concert = next((item for item in self.concerts if item.id == concert_id), None)

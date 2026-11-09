@@ -23,10 +23,9 @@ class ScheduleConcertHandler:
             if artist is None:
                 raise ArtistNotFound(command.artist_id)
 
-            concert_id = unit_of_work.festivals.next_concert_id()
             try:
                 concert = festival.schedule_concert(
-                    concert_id=concert_id,
+                    concert_id=None,
                     artist_id=artist.id,
                     stage_id=command.stage_id,
                     time_slot=command.time_slot,
@@ -35,8 +34,11 @@ class ScheduleConcertHandler:
             except DomainError as exc:
                 raise ConcertScheduleRejected(str(exc)) from exc
 
-            events = festival.pull_domain_events()
             unit_of_work.festivals.save(festival)
+            if concert.id is None:
+                raise RuntimeError("Le repository n'a pas attribué d'identifiant au concert")
+            festival.record_concert_scheduled(concert)
+            events = festival.pull_domain_events()
             for event in events:
                 unit_of_work.outbox.add(event)
             unit_of_work.commit()

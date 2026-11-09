@@ -35,3 +35,7 @@ class ConcertCancelRejected(ApplicationError):
 
 class FestivalPublishRejected(ApplicationError):
     """A domain invariant prevented a festival from being published."""
+
+
+class FestivalCreationRejected(ApplicationError):
+    """Festival data failed domain validation."""

@@ -40,7 +40,9 @@ def test_publish_festival_persists_status_and_outbox_event(client, monkeypatch):
  assert response.json()["status"]=="published"
  db=SessionLocal()
  try:
-  event=db.query(OutboxEvent).one()
+  event=db.query(OutboxEvent).filter(
+      OutboxEvent.event_type=="FestivalPublished"
+  ).one()
   assert event.event_type=="FestivalPublished"
   assert event.payload=={"festival_id":festival_id}
  finally:
@@ -53,8 +55,8 @@ def test_publish_festival_persists_status_and_outbox_event(client, monkeypatch):
  )
  db=SessionLocal()
  try:
-  assert SqlAlchemyOutboxDispatcher(db).dispatch_pending()==1
-  assert sent[0][2]==f"Le festival {festival_id} a été publié."
+  assert SqlAlchemyOutboxDispatcher(db).dispatch_pending()==2
+  assert sent[1][2]==f"Le festival {festival_id} a été publié."
  finally:
   db.close()
 
